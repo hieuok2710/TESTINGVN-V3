@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { useContent, NewsItem, HeroSlide } from '../contexts/ContentContext';
+import React, { useState, useEffect } from 'react';
+import { useContent, NewsItem, HeroSlide, AboutContent } from '../contexts/ContentContext';
 import Modal from './Modal';
 import EditSlideModal from './EditSlideModal';
 
 const ContentManagement: React.FC = () => {
-    const { newsItems, heroSlides, addNews, updateNews, deleteNews, updateHeroSlide } = useContent();
+    const { 
+        newsItems, heroSlides, aboutContent, 
+        addNews, updateNews, deleteNews, 
+        updateHeroSlide, updateAboutContent 
+    } = useContent();
 
     // State for News Modal
     const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
@@ -15,6 +19,15 @@ const ContentManagement: React.FC = () => {
     // State for Slide Modal
     const [isSlideModalOpen, setIsSlideModalOpen] = useState(false);
     const [currentSlide, setCurrentSlide] = useState<HeroSlide | null>(null);
+    
+    // State for About Page Management
+    const [aboutFormData, setAboutFormData] = useState<AboutContent>(aboutContent);
+    const [aboutMessage, setAboutMessage] = useState('');
+     const [isAboutImageDragging, setIsAboutImageDragging] = useState(false);
+
+    useEffect(() => {
+        setAboutFormData(aboutContent);
+    }, [aboutContent]);
 
 
     // News Handlers
@@ -28,6 +41,7 @@ const ContentManagement: React.FC = () => {
             reader.onloadend = () => {
                 setNewsFormData(prev => ({ ...prev, image: reader.result as string }));
             };
+            // FIX: Corrected typo from `readDataURL` to `readAsDataURL`.
             reader.readAsDataURL(file);
         }
     };
@@ -118,6 +132,40 @@ const ContentManagement: React.FC = () => {
         updateHeroSlide(updatedSlide);
         handleCloseSlideModal();
     };
+    
+    // About Page Handlers
+    const handleAboutFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        if (name === 'paragraphs') {
+            setAboutFormData(prev => ({ ...prev, paragraphs: value.split('\n') }));
+        } else {
+            setAboutFormData(prev => ({ ...prev, [name]: value }));
+        }
+    };
+    
+    const handleAboutImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.size > 2 * 1024 * 1024) { // 2MB limit
+                alert("Tệp quá lớn. Vui lòng chọn ảnh nhỏ hơn 2MB.");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setAboutFormData(prev => ({ ...prev, image: reader.result as string }));
+            };
+            // FIX: Corrected typo from `readDataURL` to `readAsDataURL`.
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleSaveAbout = (e: React.FormEvent) => {
+        e.preventDefault();
+        updateAboutContent(aboutFormData);
+        setAboutMessage('Cập nhật trang Giới thiệu thành công!');
+        setTimeout(() => setAboutMessage(''), 3000);
+    };
+
 
     return (
         <div className="space-y-12">
@@ -163,6 +211,58 @@ const ContentManagement: React.FC = () => {
                         </div>
                     ))}
                 </div>
+            </div>
+            
+            {/* About Page Management Section */}
+            <div>
+                <h2 className="text-2xl font-semibold text-gray-800 mb-4">Quản lý trang Giới thiệu</h2>
+                {aboutMessage && <div className="p-3 rounded-md bg-green-100 text-green-700 mb-4">{aboutMessage}</div>}
+                <form onSubmit={handleSaveAbout} className="p-4 border rounded-lg bg-white shadow-sm space-y-4">
+                    <div>
+                        <label htmlFor="heroTitle" className="block text-sm font-medium text-gray-700 mb-1">Tiêu đề chính (Hero)</label>
+                        <input type="text" id="heroTitle" name="heroTitle" value={aboutFormData.heroTitle} onChange={handleAboutFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required />
+                    </div>
+                     <div>
+                        <label htmlFor="heroSubtitle" className="block text-sm font-medium text-gray-700 mb-1">Tiêu đề phụ (Hero Subtitle)</label>
+                        <input type="text" id="heroSubtitle" name="heroSubtitle" value={aboutFormData.heroSubtitle} onChange={handleAboutFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required />
+                    </div>
+                     <div>
+                        <label htmlFor="mainHeading" className="block text-sm font-medium text-gray-700 mb-1">Tiêu đề nội dung chính</label>
+                        <input type="text" id="mainHeading" name="mainHeading" value={aboutFormData.mainHeading} onChange={handleAboutFormChange} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required />
+                    </div>
+                    <div>
+                        <label htmlFor="paragraphs" className="block text-sm font-medium text-gray-700 mb-1">Nội dung chính (mỗi đoạn một dòng)</label>
+                        <textarea id="paragraphs" name="paragraphs" value={aboutFormData.paragraphs.join('\n')} onChange={handleAboutFormChange} rows={6} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" required />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Hình ảnh</label>
+                        <div className="mt-1">
+                             <label 
+                                htmlFor="about-image-upload" 
+                                className={`flex flex-col justify-center items-center w-full h-48 bg-gray-50 rounded-lg border-2 border-dashed cursor-pointer transition-colors relative overflow-hidden ${isAboutImageDragging ? 'border-blue-500 bg-blue-100' : 'border-gray-300 hover:bg-gray-100'}`}
+                            >
+                                {aboutFormData.image ? (
+                                    <>
+                                        <img src={aboutFormData.image} alt="Xem trước" className="absolute inset-0 w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                            <span className="text-white font-semibold">Thay đổi ảnh</span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-center text-gray-500">
+                                        <p>Nhấn hoặc kéo ảnh vào đây để tải lên</p>
+                                    </div>
+                                )}
+                                <input id="about-image-upload" type="file" className="hidden" accept="image/*" onChange={handleAboutImageUpload} />
+                            </label>
+                        </div>
+                    </div>
+                    <div className="flex justify-end">
+                        <button type="submit" className="px-6 py-2 bg-blue-600 text-white font-bold rounded-md hover:bg-blue-700 transition-colors">
+                            Lưu thay đổi
+                        </button>
+                    </div>
+                </form>
             </div>
             
             {/* News Modal */}

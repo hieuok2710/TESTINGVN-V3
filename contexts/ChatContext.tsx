@@ -66,67 +66,78 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Manage online status
     useEffect(() => {
-        const updateOnlineStatus = (status: 'online' | 'offline') => {
-            if (!user) return;
-            
-            const currentData = getStoredChatData();
-            const { username, type } = user;
+        const updateStatus = (data: ChatData, userToUpdate: typeof user, status: 'online' | 'offline'): ChatData => {
+            if (!userToUpdate) return data;
+            const newData = JSON.parse(JSON.stringify(data)); // Deep clone
+            const { username, type } = userToUpdate;
 
             if (type === 'admin') {
-                const admins = new Set(currentData.onlineAdmins);
+                const admins = new Set(newData.onlineAdmins);
                 if (status === 'online') admins.add(username);
                 else admins.delete(username);
-                currentData.onlineAdmins = Array.from(admins);
+                newData.onlineAdmins = Array.from(admins);
             } else {
-                 const users = new Set(currentData.onlineUsers);
+                const users = new Set(newData.onlineUsers);
                 if (status === 'online') users.add(username);
                 else users.delete(username);
-                currentData.onlineUsers = Array.from(users);
+                newData.onlineUsers = Array.from(users);
             }
-            saveChatData(currentData);
+            return newData;
         };
 
         if (user) {
-            updateOnlineStatus('online');
+            setChatData(prevData => {
+                const newData = updateStatus(prevData, user, 'online');
+                saveChatData(newData);
+                return newData;
+            });
         }
 
         const handleBeforeUnload = () => {
-            updateOnlineStatus('offline');
+            if (user) {
+                // This has to be synchronous, so we read from storage, update, and write back.
+                const currentData = getStoredChatData();
+                const newData = updateStatus(currentData, user, 'offline');
+                saveChatData(newData);
+            }
         };
         
         window.addEventListener('beforeunload', handleBeforeUnload);
 
         return () => {
-            if (user) {
-                updateOnlineStatus('offline');
-            }
             window.removeEventListener('beforeunload', handleBeforeUnload);
+            if (user) { // `user` from closure is the user that is logging out
+                setChatData(prevData => {
+                    const newData = updateStatus(prevData, user, 'offline');
+                    saveChatData(newData);
+                    return newData;
+                });
+            }
         };
     }, [user]);
 
     const sendMessage = (to: string, text: string) => {
         if (!user || !text.trim()) return;
 
-        const from = user.type === 'admin' ? 'admin' : user.username;
-
         const newMessage: ChatMessage = {
-            from,
+            from: user.type === 'admin' ? 'admin' : user.username,
             to,
             text: text.trim(),
             timestamp: Date.now(),
         };
 
-        const currentData = getStoredChatData();
-        
-        const conversationKey = user.type === 'admin' ? to : user.username;
+        setChatData(prevData => {
+            const newData = JSON.parse(JSON.stringify(prevData)); // Deep clone to prevent mutation
+            const conversationKey = user.type === 'admin' ? to : user.username;
 
-        if (!currentData.conversations[conversationKey]) {
-            currentData.conversations[conversationKey] = [];
-        }
-        currentData.conversations[conversationKey].push(newMessage);
-        
-        setChatData(currentData);
-        saveChatData(currentData);
+            if (!newData.conversations[conversationKey]) {
+                newData.conversations[conversationKey] = [];
+            }
+            newData.conversations[conversationKey].push(newMessage);
+            
+            saveChatData(newData);
+            return newData;
+        });
     };
 
     const getUnreadCount = (username?: string) => {

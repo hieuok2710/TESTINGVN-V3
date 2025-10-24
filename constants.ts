@@ -15,20 +15,10 @@ const NAV_ITEMS: NavItem[] = [
   { 
     label: 'Giới thiệu', 
     href: '#',
-    children: [
-      { label: 'Về chúng tôi', href: '#' },
-      { label: 'Sứ mệnh & Tầm nhìn', href: '#' },
-      { label: 'Đội ngũ', href: '#' },
-    ]
   },
   { 
     label: 'Các kỳ thi', 
     href: '#',
-    children: [
-        { label: 'Violympic', href: '#' },
-        { label: 'Trạng Nguyên Tiếng Việt', href: '#' },
-        { label: 'Trạng Nguyên Toàn Tài', href: '#' },
-    ]
   },
   { label: 'Tin tức', href: '#' },
   { label: 'Hỗ trợ', href: '#' },
@@ -410,6 +400,6 @@ const QUESTION_BANK: { [subject: string]: { [className: string]: QuizQuestion[] 
             { question: "My mother's son is my...", options: ["sister", "father", "brother", "aunt"], correctAnswerIndex: 2, difficulty: 'hard' },
             { question: "What do you use to write?", options: ["An eraser", "A book", "A pen", "A chair"], correctAnswerIndex: 2, difficulty: 'hard' },
         ],
-        'LỚP 2': [], 'LỚP 3': [], 'LỚP 4': [], 'LỚP 5': [], 'LỚP 6': [], 'LỚP 7': [], 'LỚP 8': [], 'LỚP 9': [], 'LỚP 10': [], 'LỚP 11': [], 'LỚP 12': [],
+        'LỚP 2': [], 'LỚP 3': [], 'LỚP 5': [], 'LỚP 6': [], 'LỚP 7': [], 'LỚP 8': [], 'LỚP 9': [], 'LỚP 10': [], 'LỚP 11': [], 'LỚP 12': [],
     }
 };

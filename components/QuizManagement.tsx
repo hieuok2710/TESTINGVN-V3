@@ -248,11 +248,11 @@ const QuizManagement: React.FC = () => {
     const indexOfFirstQuestion = indexOfLastQuestion - questionsPerPage;
     const paginatedQuestions = currentQuestions.slice(indexOfFirstQuestion, indexOfLastQuestion);
     
-    // FIX: Add a type guard `Array.isArray(arr)` to safely access the `length` property.
-    // `Object.values` on an object with an index signature can return `unknown[]` under
-    // certain TypeScript configurations. This guard ensures we only try to get `.length`
-    // from actual arrays, preventing the "Operator '+' cannot be applied" error.
     const importedQuestionCount = importedQuestions
+        // FIX: Added an Array.isArray type guard to safely access the .length property.
+        // When using Object.values on an object with an index signature, TypeScript may infer
+        // the values as `unknown[]`. This check ensures we only access `.length` on actual arrays,
+        // resolving the "Operator '+' cannot be applied to types 'unknown' and 'number'" error.
         ? Object.values(importedQuestions).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
         : 0;
 

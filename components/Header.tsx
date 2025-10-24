@@ -1,5 +1,5 @@
-import React, { useState, useId } from 'react';
-import { NAV_ITEMS, type NavItem } from '../constants';
+import React, { useState, useId, useRef, useEffect } from 'react';
+import { NAV_ITEMS, type NavItem, SUBJECT_LEVELS, QUIZ_ROUNDS } from '../constants';
 import Modal from './Modal';
 import RegistrationForm from './RegistrationForm';
 import LoginForm from './LoginForm';
@@ -10,44 +10,59 @@ interface HeaderProps {
     onGoToHome: () => void;
     onGoToNews: () => void;
     onGoToHistory: () => void;
+    onGoToAbout: () => void;
+    onStartQuiz: (className: string) => void;
+    onHideGradeNav: () => void;
+    onEnableGradeNavAutoHide: () => void;
 }
 
-const NavLink: React.FC<{ item: NavItem; onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void }> = ({ item, onClick }) => {
+interface NavLinkProps {
+    item: NavItem;
+    onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+    elementRef?: React.Ref<HTMLLIElement>;
+    onChildClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+}
+
+
+const NavLink: React.FC<NavLinkProps> = ({ item, onClick, elementRef, onChildClick }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownId = useId();
 
     const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
         if (onClick) {
-            e.preventDefault();
+            // Let the custom handler decide whether to prevent default
             onClick(e);
         }
-        // Let other links behave normally
+        // Let other links behave normally if no custom handler or if it doesn't prevent default
     };
+
+    const hasChildren = item.label !== 'Vào thi' && item.children;
 
     return (
         <li 
+            ref={elementRef}
             className="relative group"
-            onMouseEnter={() => setIsOpen(true)}
-            onMouseLeave={() => setIsOpen(false)}
+            onMouseEnter={() => hasChildren && setIsOpen(true)}
+            onMouseLeave={() => hasChildren && setIsOpen(false)}
         >
             <a 
                 href={item.href} 
                 onClick={handleClick}
                 className="flex items-center px-4 py-3 text-sm font-semibold text-slate-200 uppercase tracking-wider hover:bg-slate-700 hover:text-white transition-colors duration-300 rounded-md"
-                aria-haspopup={!!item.children}
+                aria-haspopup={!!hasChildren}
                 aria-expanded={isOpen}
-                aria-controls={item.children ? dropdownId : undefined}
+                aria-controls={hasChildren ? dropdownId : undefined}
             >
                 {item.label}
-                {item.children && (
+                {hasChildren && (
                     <svg className="w-4 h-4 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                 )}
             </a>
-            {isOpen && item.children && (
+            {isOpen && hasChildren && (
                 <ul id={dropdownId} className="absolute left-0 mt-2 w-56 bg-slate-800 shadow-lg z-50 rounded-md overflow-hidden animate-fade-in-down">
                     {item.children.map((child, index) => (
                         <li key={index}>
-                            <a href={child.href} className="block px-4 py-3 text-sm text-slate-300 hover:bg-indigo-600 hover:text-white transition-colors duration-300">
+                            <a href={child.href} onClick={(e) => onChildClick(e)} className="block px-4 py-3 text-sm text-slate-300 hover:bg-indigo-600 hover:text-white transition-colors duration-300">
                                 {child.label}
                             </a>
                         </li>
@@ -58,25 +73,98 @@ const NavLink: React.FC<{ item: NavItem; onClick?: (e: React.MouseEvent<HTMLAnch
     );
 };
 
-const Header: React.FC<HeaderProps> = ({ onGoToAdmin, onGoToHome, onGoToNews, onGoToHistory }) => {
+const Header: React.FC<HeaderProps> = ({ onGoToAdmin, onGoToHome, onGoToNews, onGoToHistory, onGoToAbout, onStartQuiz, onHideGradeNav, onEnableGradeNavAutoHide }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+    const [isQuizMenuOpen, setIsQuizMenuOpen] = useState(false);
+    const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
+    const [alertMessage, setAlertMessage] = useState('');
+
     const { user, logout } = useAuth();
+    const quizMenuRef = useRef<HTMLLIElement>(null);
     const mobileMenuId = useId();
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (quizMenuRef.current && !quizMenuRef.current.contains(event.target as Node)) {
+                setIsQuizMenuOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [quizMenuRef]);
 
     const handleRegistrationSuccess = () => {
         setIsRegisterModalOpen(false);
         setIsLoginModalOpen(true);
     };
 
+    const handleStartQuizFromMenu = (subjectName: string, roundName: string) => {
+        if (!user || !user.className) return;
+
+        const subjectShortName = subjectName.replace('ÔN TẬP MÔN ', '').replace('ÔN TẬP ', '');
+        const fullQuizName = `${subjectShortName} - ${user.className} - ${roundName}`;
+        
+        try {
+            const allAttemptsRaw = localStorage.getItem('quiz_attempts');
+            const allAttempts = allAttemptsRaw ? JSON.parse(allAttemptsRaw) : {};
+            const todayString = new Date().toISOString().split('T')[0];
+            const userAttemptsToday = allAttempts[user.username]?.[todayString] || {};
+            const currentAttempts = userAttemptsToday[fullQuizName] || 0;
+
+            if (currentAttempts >= 4) {
+                setAlertMessage(`Bạn đã hết lượt thi cho vòng này hôm nay. Vui lòng quay lại vào ngày mai.`);
+                setIsAlertModalOpen(true);
+                setIsQuizMenuOpen(false);
+                return;
+            }
+
+            if (!allAttempts[user.username]) allAttempts[user.username] = {};
+            if (!allAttempts[user.username][todayString]) allAttempts[user.username][todayString] = {};
+            allAttempts[user.username][todayString][fullQuizName] = currentAttempts + 1;
+            localStorage.setItem('quiz_attempts', JSON.stringify(allAttempts));
+
+        } catch (e) {
+            console.error("Failed to save quiz attempt", e);
+            setAlertMessage('Không thể lưu lại lượt thi của bạn. Vui lòng thử lại.');
+            setIsAlertModalOpen(true);
+            return;
+        }
+
+        onStartQuiz(fullQuizName);
+        setIsQuizMenuOpen(false);
+    };
+
     const handleNavLinkClick = (label: string, e: React.MouseEvent<HTMLAnchorElement>) => {
-        if (label === 'Trang chủ') {
+        if (label === 'Vào thi') {
             e.preventDefault();
-            onGoToHome();
-        } else if (label === 'Tin tức') {
-            e.preventDefault();
-            onGoToNews();
+            onEnableGradeNavAutoHide();
+            if (user) {
+                if (user.type === 'user' && user.className) {
+                    setIsQuizMenuOpen(prev => !prev);
+                }
+            } else {
+                setIsLoginModalOpen(true);
+            }
+        } else {
+            e.preventDefault(); // Prevent default for all main nav items with actions
+            let action: (() => void) | null = null;
+            if (label === 'Trang chủ') action = onGoToHome;
+            else if (label === 'Tin tức') action = onGoToNews;
+            else if (label === 'Giới thiệu') action = onGoToAbout;
+
+            if (action) {
+                action();
+                onHideGradeNav(); // Always hide grade nav on main page navigation
+            } else {
+                const item = NAV_ITEMS.find(i => i.label === label);
+                if (item && !item.children) {
+                     onHideGradeNav();
+                }
+            }
         }
     };
 
@@ -177,7 +265,45 @@ const Header: React.FC<HeaderProps> = ({ onGoToAdmin, onGoToHome, onGoToNews, on
                 <nav className="bg-slate-800 shadow-inner" aria-label="Main Navigation">
                     <div className="container mx-auto">
                         <ul className="hidden lg:flex justify-center items-center gap-x-2 p-2">
-                             {NAV_ITEMS.map((item, index) => <NavLink key={index} item={item} onClick={(e) => handleNavLinkClick(item.label, e)} />)}
+                            {NAV_ITEMS.map((item, index) => 
+                                <NavLink 
+                                    key={index} 
+                                    item={item} 
+                                    onClick={(e) => handleNavLinkClick(item.label, e)}
+                                    onChildClick={
+                                        item.label === 'Giới thiệu' 
+                                            ? (e) => { e.preventDefault(); onGoToAbout(); onHideGradeNav(); }
+                                            : () => { onHideGradeNav(); }
+                                    }
+                                    elementRef={item.label === 'Vào thi' ? quizMenuRef : undefined}
+                                />
+                            )}
+                             {isQuizMenuOpen && user && user.type === 'user' && user.className && (
+                                <div className="absolute top-full mt-2 w-96 bg-slate-800 shadow-lg z-50 rounded-md overflow-hidden animate-fade-in-down">
+                                    <div className="p-3 bg-slate-900/50">
+                                        <h3 className="font-bold text-white text-center">Lớp: {user.className}</h3>
+                                    </div>
+                                    <div className="p-2 max-h-80 overflow-y-auto">
+                                        {SUBJECT_LEVELS.map(subject => (
+                                            <div key={subject.subject} className="mb-2 last:mb-0">
+                                                <h4 className="px-2 py-1 text-xs font-bold uppercase text-slate-400">{subject.subject}</h4>
+                                                <ul className="space-y-1">
+                                                    {QUIZ_ROUNDS.map(round => (
+                                                        <li key={round.id}>
+                                                            <button
+                                                                onClick={() => handleStartQuizFromMenu(subject.subject, round.name)}
+                                                                className="w-full text-left block px-3 py-2 text-sm text-slate-300 hover:bg-indigo-600 hover:text-white transition-colors duration-200 rounded-md"
+                                                            >
+                                                                {round.name}
+                                                            </button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </ul>
                     </div>
                 </nav>
@@ -200,7 +326,14 @@ const Header: React.FC<HeaderProps> = ({ onGoToAdmin, onGoToHome, onGoToNews, on
                                         <ul className="pl-4">
                                             {item.children.map((child, childIndex) => (
                                                 <li key={childIndex}>
-                                                     <a href={child.href} className="block px-4 py-2 text-sm text-slate-300 hover:text-white">
+                                                     <a href={child.href} onClick={(e) => {
+                                                        if (item.label === 'Giới thiệu') {
+                                                            e.preventDefault();
+                                                            onGoToAbout();
+                                                        }
+                                                        onHideGradeNav(); 
+                                                        setIsMobileMenuOpen(false);
+                                                     }} className="block px-4 py-2 text-sm text-slate-300 hover:text-white">
                                                         {child.label}
                                                     </a>
                                                 </li>
@@ -228,6 +361,23 @@ const Header: React.FC<HeaderProps> = ({ onGoToAdmin, onGoToHome, onGoToNews, on
                 title="Đăng nhập tài khoản"
             >
                 <LoginForm onClose={() => setIsLoginModalOpen(false)} />
+            </Modal>
+            <Modal
+                isOpen={isAlertModalOpen}
+                onClose={() => setIsAlertModalOpen(false)}
+                title="Thông báo"
+            >
+                <div className="text-center">
+                    <p className="text-slate-700 text-lg">
+                       {alertMessage}
+                    </p>
+                    <button
+                        onClick={() => setIsAlertModalOpen(false)}
+                        className="mt-6 w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                        Đã hiểu
+                    </button>
+                </div>
             </Modal>
         </>
     );

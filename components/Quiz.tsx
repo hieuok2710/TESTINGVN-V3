@@ -55,7 +55,7 @@ const Quiz: React.FC<QuizProps> = ({ className, onEndQuiz }) => {
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [answers, setAnswers] = useState<(number | null)[]>([]);
-    const [timeLeft, setTimeLeft] = useState(10 * 60); // 10 minutes in seconds
+    const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
     const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
     const [isQuizFinished, setIsQuizFinished] = useState(false);
     const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
